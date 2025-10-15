@@ -1,0 +1,46 @@
+{
+	"name": "Snowflake1",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"parameters": {
+			"p_account": {
+				"type": "string",
+				"defaultValue": "VXBXIAN-SWA36353"
+			},
+			"p_database": {
+				"type": "string",
+				"defaultValue": "MEDIA_DB"
+			},
+			"p_warehouse": {
+				"type": "string",
+				"defaultValue": "MEDIA_WH"
+			},
+			"p_role": {
+				"type": "string",
+				"defaultValue": "ACCOUNTADMIN"
+			},
+			"p_username": {
+				"type": "string",
+				"defaultValue": "TEJACHOWDARY"
+			}
+		},
+		"annotations": [],
+		"type": "SnowflakeV2",
+		"typeProperties": {
+			"authenticationType": "Basic",
+			"accountIdentifier": "@{linkedService().p_account}",
+			"user": "@{linkedService().p_username}",
+			"database": "@{linkedService().p_database}",
+			"warehouse": "@{linkedService().p_warehouse}",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "LS_KeyVault_MI",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "sf-password"
+			}
+		},
+		"version": "1.1"
+	}
+}

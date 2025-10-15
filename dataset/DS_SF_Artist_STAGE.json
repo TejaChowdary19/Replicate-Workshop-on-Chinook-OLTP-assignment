@@ -1,0 +1,49 @@
+{
+	"name": "DS_SF_Artist_STAGE",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "Snowflake1",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"p_account": "VXBXIAN-SWA36353",
+				"p_database": "MEDIA_DB",
+				"p_warehouse": "MEDIA_WH",
+				"p_role": "ACCOUNTADMIN",
+				"p_username": "TEJACHOWDARY"
+			}
+		},
+		"annotations": [],
+		"type": "SnowflakeV2Table",
+		"schema": [
+			{
+				"name": "ARTISTID",
+				"type": "NUMBER",
+				"precision": 38,
+				"scale": 0
+			},
+			{
+				"name": "NAME",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "CREATED_BY",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "CREATED_DT",
+				"type": "DATE",
+				"precision": 0,
+				"scale": 0
+			}
+		],
+		"typeProperties": {
+			"schema": "STAGE",
+			"table": "ARTIST"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

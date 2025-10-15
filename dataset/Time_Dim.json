@@ -1,0 +1,49 @@
+{
+	"name": "Time_Dim",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "Snowflake1",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"p_account": "VXBXIAN-SWA36353",
+				"p_database": "MEDIA_DB",
+				"p_warehouse": "MEDIA_WH",
+				"p_role": "ACCOUNTADMIN",
+				"p_username": "TEJACHOWDARY"
+			}
+		},
+		"annotations": [],
+		"type": "SnowflakeV2Table",
+		"schema": [
+			{
+				"name": "TIME_KEY",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "HOUR_NUM",
+				"type": "NUMBER",
+				"precision": 38,
+				"scale": 0
+			},
+			{
+				"name": "MINUTE_NUM",
+				"type": "NUMBER",
+				"precision": 38,
+				"scale": 0
+			},
+			{
+				"name": "TIME_24_HR",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			}
+		],
+		"typeProperties": {
+			"schema": "DW",
+			"table": "TIME_DIM"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

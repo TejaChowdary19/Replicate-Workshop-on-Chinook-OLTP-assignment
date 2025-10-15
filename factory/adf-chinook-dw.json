@@ -1,0 +1,9 @@
+{
+	"name": "adf-chinook-dw",
+	"location": "westus2",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "cb6200c1-ce9b-4b5c-9387-597b9a3e2f71",
+		"tenantId": "a8eec281-aaa3-4dae-ac9b-9a398b9215e7"
+	}
+}

@@ -1,0 +1,91 @@
+{
+	"name": "DS_SF_Invoice_STAGE",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "Snowflake1",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"p_account": "VXBXIAN-SWA36353",
+				"p_database": "MEDIA_DB",
+				"p_warehouse": "MEDIA_WH",
+				"p_role": "ACCOUNTADMIN",
+				"p_username": "TEJACHOWDARY"
+			}
+		},
+		"annotations": [],
+		"type": "SnowflakeV2Table",
+		"schema": [
+			{
+				"name": "INVOICEID",
+				"type": "NUMBER",
+				"precision": 38,
+				"scale": 0
+			},
+			{
+				"name": "CUSTOMERID",
+				"type": "NUMBER",
+				"precision": 38,
+				"scale": 0
+			},
+			{
+				"name": "INVOICEDATE",
+				"type": "TIMESTAMP_NTZ",
+				"precision": 0,
+				"scale": 9
+			},
+			{
+				"name": "BILLINGADDRESS",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "BILLINGCITY",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "BILLINGSTATE",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "BILLINGCOUNTRY",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "BILLINGPOSTALCODE",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "TOTAL",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 2
+			},
+			{
+				"name": "CREATED_BY",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "CREATED_DT",
+				"type": "DATE",
+				"precision": 0,
+				"scale": 0
+			}
+		],
+		"typeProperties": {
+			"schema": "STAGE",
+			"table": "INVOICE"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

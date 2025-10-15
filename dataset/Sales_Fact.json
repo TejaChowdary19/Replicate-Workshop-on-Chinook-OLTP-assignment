@@ -1,0 +1,67 @@
+{
+	"name": "Sales_Fact",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "Snowflake1",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"p_account": "VXBXIAN-SWA36353",
+				"p_database": "MEDIA_DB",
+				"p_warehouse": "MEDIA_WH",
+				"p_role": "ACCOUNTADMIN",
+				"p_username": "TEJACHOWDARY"
+			}
+		},
+		"annotations": [],
+		"type": "SnowflakeV2Table",
+		"schema": [
+			{
+				"name": "SALES_KEY",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "CUSTOMER_KEY",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "INVOICE_ID",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "DATE_DIM_KEY",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "TOTAL_SALE_AMT",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 2
+			},
+			{
+				"name": "SOURCE_ID",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "DATE_TO_WAREHOUSE",
+				"type": "TIMESTAMP_NTZ",
+				"precision": 0,
+				"scale": 9
+			}
+		],
+		"typeProperties": {
+			"schema": "DW",
+			"table": "SALES_FACT"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

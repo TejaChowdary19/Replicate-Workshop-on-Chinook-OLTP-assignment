@@ -1,0 +1,55 @@
+{
+	"name": "Artist_Dim",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "Snowflake1",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"p_account": "VXBXIAN-SWA36353",
+				"p_database": "MEDIA_DB",
+				"p_warehouse": "MEDIA_WH",
+				"p_role": "ACCOUNTADMIN",
+				"p_username": "TEJACHOWDARY"
+			}
+		},
+		"annotations": [],
+		"type": "SnowflakeV2Table",
+		"schema": [
+			{
+				"name": "ARTIST_KEY",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "ARTIST_ID",
+				"type": "NUMBER",
+				"precision": 10,
+				"scale": 0
+			},
+			{
+				"name": "ARTIST_NAME",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "SOURCE_ID",
+				"type": "VARCHAR",
+				"precision": 0,
+				"scale": 0
+			},
+			{
+				"name": "DATE_TO_WAREHOUSE",
+				"type": "TIMESTAMP_NTZ",
+				"precision": 0,
+				"scale": 9
+			}
+		],
+		"typeProperties": {
+			"schema": "DW",
+			"table": "ARTIST_DIM"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
