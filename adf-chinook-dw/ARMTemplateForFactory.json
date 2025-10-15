@@ -1,0 +1,1278 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "adf-chinook-dw"
+		},
+		"sql_serveroltp_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'sql_serveroltp'"
+		},
+		"AzureBlobStorage1_properties_typeProperties_serviceEndpoint": {
+			"type": "string",
+			"defaultValue": "https://stchinook.blob.core.windows.net/"
+		},
+		"Blob_SAS_properties_typeProperties_sasUri_secretName": {
+			"type": "string",
+			"defaultValue": "blob-sas"
+		},
+		"LS_KeyVault_MI_properties_typeProperties_baseUrl": {
+			"type": "string",
+			"defaultValue": "https://kv-chinook-keys.vault.azure.net/"
+		},
+		"Snowflake1_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "@{linkedService().p_database}"
+		},
+		"sql_serveroltp_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "chinook-sql.database.windows.net"
+		},
+		"sql_serveroltp_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "Chinook"
+		},
+		"sql_serveroltp_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "fall2025"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/pipeline1')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "ForEach1",
+						"type": "ForEach",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@json('[\"chinook.Artist\",\"chinook.Album\",\"chinook.Customer\",\"chinook.Invoice\",\"chinook.InvoiceLine\",\"chinook.Track\"]')",
+								"type": "Expression"
+							},
+							"activities": [
+								{
+									"name": "Copy data1",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "AzureSqlSource",
+											"queryTimeout": "02:00:00",
+											"partitionOption": "None"
+										},
+										"sink": {
+											"type": "ParquetSink",
+											"storeSettings": {
+												"type": "AzureBlobStorageWriteSettings"
+											},
+											"formatSettings": {
+												"type": "ParquetWriteSettings"
+											}
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "sql_generic",
+											"type": "DatasetReference",
+											"parameters": {
+												"TableName": {
+													"value": "@item()",
+													"type": "Expression"
+												}
+											}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "blob_stage",
+											"type": "DatasetReference",
+											"parameters": {
+												"TableName": {
+													"value": "@item()",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2025-10-14T07:19:58Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/sql_generic')]",
+				"[concat(variables('factoryId'), '/datasets/blob_stage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/pipeline2')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Populate_DATE_DIM",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "Snowflake1",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"p_account": "VXBXIAN-SWA36353",
+								"p_database": "MEDIA_DB",
+								"p_warehouse": "MEDIA_WH",
+								"p_role": "ACCOUNTADMIN",
+								"p_username": "TEJACHOWDARY"
+							}
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "USE ROLE MEDIA_ROLE;\nUSE WAREHOUSE MEDIA_WH;\nUSE DATABASE MEDIA_DB;\nUSE SCHEMA DW;\n\n-- Clear if you want a full refresh\nTRUNCATE TABLE DATE_DIM;\n\nCREATE OR REPLACE TEMP TABLE rng AS\nSELECT \n  DATE_TRUNC('day', MIN(InvoiceDate)) AS start_d,\n  DATE_TRUNC('day', MAX(InvoiceDate)) AS end_d\nFROM MEDIA_DB.STAGE.Invoice;\n\nINSERT INTO DATE_DIM (\n  FULL_DATE, DAY_NUM, WEEKDAY_ABBR, WEEKDAY_NUM, DAY_OF_YEAR_NUM, WEEK_OF_YEAR,\n  MONTH_NUM, MONTH_ABBR, QUARTER_NUM, QUARTER_NAME, YEAR_NUM,\n  FIRST_DAY_OF_MONTH, LAST_DAY_OF_MONTH, IS_WEEKEND\n)\nSELECT\n  DATEADD('day', seq4(), start_d)::DATE AS FULL_DATE,\n  DAY(DATEADD('day', seq4(), start_d)) AS DAY_NUM,\n  TO_VARCHAR(DATEADD('day', seq4(), start_d), 'DY') AS WEEKDAY_ABBR,\n  DAYOFWEEK(DATEADD('day', seq4(), start_d)) AS WEEKDAY_NUM,\n  DAYOFYEAR(DATEADD('day', seq4(), start_d)) AS DAY_OF_YEAR_NUM,\n  WEEKISO(DATEADD('day', seq4(), start_d)) AS WEEK_OF_YEAR,\n  MONTH(DATEADD('day', seq4(), start_d)) AS MONTH_NUM,\n  TO_VARCHAR(DATEADD('day', seq4(), start_d), 'MON') AS MONTH_ABBR,\n  QUARTER(DATEADD('day', seq4(), start_d)) AS QUARTER_NUM,\n  CONCAT('Q', QUARTER(DATEADD('day', seq4(), start_d))) AS QUARTER_NAME,\n  YEAR(DATEADD('day', seq4(), start_d)) AS YEAR_NUM,\n  DATE_TRUNC('month', DATEADD('day', seq4(), start_d)) AS FIRST_DAY_OF_MONTH,\n  LAST_DAY(DATEADD('day', seq4(), start_d)) AS LAST_DAY_OF_MONTH,\n  IFF(DAYOFWEEK(DATEADD('day', seq4(), start_d)) IN (0,6), 'Y', 'N') AS IS_WEEKEND\nFROM rng, TABLE(GENERATOR(ROWCOUNT => 10000))\nWHERE seq4() <= DATEDIFF('day', start_d, end_d);\n",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					},
+					{
+						"name": "Populate_TIME_DIM",
+						"type": "Script",
+						"dependsOn": [
+							{
+								"activity": "Populate_DATE_DIM",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "Snowflake1",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"p_account": "VXBXIAN-SWA36353",
+								"p_database": "MEDIA_DB",
+								"p_warehouse": "MEDIA_WH",
+								"p_role": "ACCOUNTADMIN",
+								"p_username": "TEJACHOWDARY"
+							}
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "USE ROLE MEDIA_ROLE;\nUSE WAREHOUSE MEDIA_WH;\nUSE DATABASE MEDIA_DB;\nUSE SCHEMA DW;\n\nTRUNCATE TABLE TIME_DIM;\n\nINSERT INTO TIME_DIM (HOUR_NUM, MINUTE_NUM, TIME_24_HR)\nSELECT \n  HOUR_NUM, \n  MINUTE_NUM, \n  LPAD(HOUR_NUM::STRING,2,'0') || ':' || LPAD(MINUTE_NUM::STRING,2,'0')\nFROM (\n  SELECT \n    (SEQ4() / 60)::INT AS HOUR_NUM,\n    (SEQ4() % 60)::INT AS MINUTE_NUM\n  FROM TABLE(GENERATOR(ROWCOUNT => 1440))\n);\n",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					},
+					{
+						"name": "Upsert_CUSTOMER_DIM",
+						"type": "Script",
+						"dependsOn": [
+							{
+								"activity": "Populate_TIME_DIM",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "Snowflake1",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"p_account": "VXBXIAN-SWA36353",
+								"p_database": "MEDIA_DB",
+								"p_warehouse": "MEDIA_WH",
+								"p_role": "ACCOUNTADMIN",
+								"p_username": "TEJACHOWDARY"
+							}
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "USE ROLE MEDIA_ROLE;\nUSE WAREHOUSE MEDIA_WH;\nUSE DATABASE MEDIA_DB;\nUSE SCHEMA DW;\n\nMERGE INTO CUSTOMER_DIM t\nUSING (\n  SELECT\n    CUSTOMERID,\n    FIRSTNAME,\n    LASTNAME,\n    COMPANY,\n    CITY,\n    STATE,\n    COUNTRY,\n    POSTALCODE,\n    SUPPORTREPID,\n    SHA2( TO_VARCHAR(CUSTOMERID) || '|' ||\n          UPPER(TRIM(FIRSTNAME)) || '|' || UPPER(TRIM(LASTNAME)) || '|' ||\n          NVL(UPPER(TRIM(COMPANY)),'') || '|' ||\n          UPPER(TRIM(CITY)) || '|' || UPPER(TRIM(STATE)) || '|' ||\n          UPPER(TRIM(COUNTRY)) || '|' || NVL(UPPER(TRIM(POSTALCODE)),'') || '|' ||\n          TO_VARCHAR(SUPPORTREPID), 256) AS HASH_VALUE\n  FROM MEDIA_DB.STAGE.CUSTOMER\n) s\nON t.CUSTOMER_ID = s.CUSTOMERID\nWHEN MATCHED AND t.HASH_VALUE <> s.HASH_VALUE THEN\n  UPDATE SET\n    FIRST_NAME   = s.FIRSTNAME,\n    LAST_NAME    = s.LASTNAME,\n    COMPANY      = s.COMPANY,\n    CITY         = s.CITY,\n    STATE        = s.STATE,\n    COUNTRY      = s.COUNTRY,\n    ZIP_CODE     = s.POSTALCODE,\n    EMPLOYEE_ID  = s.SUPPORTREPID,\n    HASH_VALUE   = s.HASH_VALUE,\n    DATE_TO_WAREHOUSE = CURRENT_TIMESTAMP()\nWHEN NOT MATCHED THEN\n  INSERT (CUSTOMER_ID, FIRST_NAME, LAST_NAME, COMPANY, CITY, STATE, COUNTRY, ZIP_CODE, EMPLOYEE_ID, HASH_VALUE, SOURCE_ID)\n  VALUES (s.CUSTOMERID, s.FIRSTNAME, s.LASTNAME, s.COMPANY, s.CITY, s.STATE, s.COUNTRY, s.POSTALCODE, s.SUPPORTREPID, s.HASH_VALUE, 'CHINOOK');",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					},
+					{
+						"name": "Upsert_ARTIST_DIM",
+						"type": "Script",
+						"dependsOn": [
+							{
+								"activity": "Upsert_CUSTOMER_DIM",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "Snowflake1",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"p_account": "VXBXIAN-SWA36353",
+								"p_database": "MEDIA_DB",
+								"p_warehouse": "MEDIA_WH",
+								"p_role": "ACCOUNTADMIN",
+								"p_username": "TEJACHOWDARY"
+							}
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "USE ROLE MEDIA_ROLE;\nUSE WAREHOUSE MEDIA_WH;\nUSE DATABASE MEDIA_DB;\nUSE SCHEMA DW;\n\nMERGE INTO ARTIST_DIM t\nUSING (\n  SELECT ARTISTID, NAME\n  FROM MEDIA_DB.STAGE.ARTIST\n) s\nON t.ARTIST_ID = s.ARTISTID\nWHEN MATCHED THEN\n  UPDATE SET ARTIST_NAME = s.NAME, DATE_TO_WAREHOUSE = CURRENT_TIMESTAMP()\nWHEN NOT MATCHED THEN\n  INSERT (ARTIST_ID, ARTIST_NAME, SOURCE_ID)\n  VALUES (s.ARTISTID, s.NAME, 'CHINOOK');",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					},
+					{
+						"name": "Load_SALES_FACT",
+						"type": "Script",
+						"dependsOn": [
+							{
+								"activity": "Upsert_ARTIST_DIM",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "Snowflake1",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"p_account": "VXBXIAN-SWA36353",
+								"p_database": "MEDIA_DB",
+								"p_warehouse": "MEDIA_WH",
+								"p_role": "ACCOUNTADMIN",
+								"p_username": "TEJACHOWDARY"
+							}
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "USE ROLE MEDIA_ROLE;\nUSE WAREHOUSE MEDIA_WH;\nUSE DATABASE MEDIA_DB;\nUSE SCHEMA DW;\n\nINSERT INTO SALES_FACT (CUSTOMER_KEY, INVOICE_ID, DATE_DIM_KEY, TOTAL_SALE_AMT, SOURCE_ID)\nSELECT\n  c.CUSTOMER_KEY,\n  i.InvoiceId,\n  d.DATE_KEY,\n  i.Total,\n  1 AS SOURCE_ID\nFROM MEDIA_DB.STAGE.Invoice i\nJOIN DW.CUSTOMER_DIM c ON c.CUSTOMER_ID = i.CustomerId\nJOIN DW.DATE_DIM d     ON d.FULL_DATE   = CAST(i.InvoiceDate AS DATE)\nLEFT JOIN DW.SALES_FACT f ON f.INVOICE_ID = i.InvoiceId\nWHERE f.INVOICE_ID IS NULL;",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					},
+					{
+						"name": "Validate_Counts",
+						"type": "Script",
+						"dependsOn": [
+							{
+								"activity": "Load_SALES_FACT",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "Snowflake1",
+							"type": "LinkedServiceReference",
+							"parameters": {
+								"p_account": "VXBXIAN-SWA36353",
+								"p_database": "MEDIA_DB",
+								"p_warehouse": "MEDIA_WH",
+								"p_role": "ACCOUNTADMIN",
+								"p_username": "TEJACHOWDARY"
+							}
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "USE ROLE MEDIA_ROLE;\nUSE WAREHOUSE MEDIA_WH;\nUSE DATABASE MEDIA_DB;\nUSE SCHEMA DW;\n\nSELECT 'DATE_DIM', COUNT(*) FROM DATE_DIM\nUNION ALL SELECT 'TIME_DIM', COUNT(*) FROM TIME_DIM\nUNION ALL SELECT 'CUSTOMER_DIM', COUNT(*) FROM CUSTOMER_DIM\nUNION ALL SELECT 'ARTIST_DIM', COUNT(*) FROM ARTIST_DIM\nUNION ALL SELECT 'SALES_FACT', COUNT(*) FROM SALES_FACT;",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2025-10-14T07:59:14Z"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Artist_Dim')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "ARTIST_KEY",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "ARTIST_ID",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "ARTIST_NAME",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "SOURCE_ID",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "DATE_TO_WAREHOUSE",
+						"type": "TIMESTAMP_NTZ",
+						"precision": 0,
+						"scale": 9
+					}
+				],
+				"typeProperties": {
+					"schema": "DW",
+					"table": "ARTIST_DIM"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Customer_Dim')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "CUSTOMER_KEY",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "CUSTOMER_ID",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "FIRST_NAME",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "LAST_NAME",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "COMPANY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "CITY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "STATE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "COUNTRY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "ZIP_CODE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "EMPLOYEE_ID",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "IS_ACTIVE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "SOURCE_ID",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "DATE_TO_WAREHOUSE",
+						"type": "TIMESTAMP_NTZ",
+						"precision": 0,
+						"scale": 9
+					},
+					{
+						"name": "HASH_VALUE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					}
+				],
+				"typeProperties": {
+					"schema": "DW",
+					"table": "CUSTOMER_DIM"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_SF_Artist_STAGE')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "ARTISTID",
+						"type": "NUMBER",
+						"precision": 38,
+						"scale": 0
+					},
+					{
+						"name": "NAME",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "CREATED_BY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "CREATED_DT",
+						"type": "DATE",
+						"precision": 0,
+						"scale": 0
+					}
+				],
+				"typeProperties": {
+					"schema": "STAGE",
+					"table": "ARTIST"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_SF_Customer_STAGE')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "CUSTOMERID",
+						"type": "NUMBER",
+						"precision": 38,
+						"scale": 0
+					},
+					{
+						"name": "FIRSTNAME",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "LASTNAME",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "COMPANY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "ADDRESS",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "CITY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "STATE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "COUNTRY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "POSTALCODE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "PHONE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "FAX",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "EMAIL",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "SUPPORTREPID",
+						"type": "NUMBER",
+						"precision": 38,
+						"scale": 0
+					},
+					{
+						"name": "CREATED_BY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "CREATED_DT",
+						"type": "DATE",
+						"precision": 0,
+						"scale": 0
+					}
+				],
+				"typeProperties": {
+					"schema": "STAGE",
+					"table": "CUSTOMER"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DS_SF_Invoice_STAGE')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "INVOICEID",
+						"type": "NUMBER",
+						"precision": 38,
+						"scale": 0
+					},
+					{
+						"name": "CUSTOMERID",
+						"type": "NUMBER",
+						"precision": 38,
+						"scale": 0
+					},
+					{
+						"name": "INVOICEDATE",
+						"type": "TIMESTAMP_NTZ",
+						"precision": 0,
+						"scale": 9
+					},
+					{
+						"name": "BILLINGADDRESS",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "BILLINGCITY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "BILLINGSTATE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "BILLINGCOUNTRY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "BILLINGPOSTALCODE",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "TOTAL",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "CREATED_BY",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "CREATED_DT",
+						"type": "DATE",
+						"precision": 0,
+						"scale": 0
+					}
+				],
+				"typeProperties": {
+					"schema": "STAGE",
+					"table": "INVOICE"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Sales_Fact')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "SALES_KEY",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "CUSTOMER_KEY",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "INVOICE_ID",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "DATE_DIM_KEY",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "TOTAL_SALE_AMT",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 2
+					},
+					{
+						"name": "SOURCE_ID",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "DATE_TO_WAREHOUSE",
+						"type": "TIMESTAMP_NTZ",
+						"precision": 0,
+						"scale": 9
+					}
+				],
+				"typeProperties": {
+					"schema": "DW",
+					"table": "SALES_FACT"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Time_Dim')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "TIME_KEY",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "HOUR_NUM",
+						"type": "NUMBER",
+						"precision": 38,
+						"scale": 0
+					},
+					{
+						"name": "MINUTE_NUM",
+						"type": "NUMBER",
+						"precision": 38,
+						"scale": 0
+					},
+					{
+						"name": "TIME_24_HR",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					}
+				],
+				"typeProperties": {
+					"schema": "DW",
+					"table": "TIME_DIM"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/blob_stage')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "AzureBlobStorage1",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"TableName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobStorageLocation",
+						"fileName": {
+							"value": "@concat(dataset().TableName, '_', formatDateTime(utcNow(), 'yyyyMMdd_HHmmss'), '.parquet')",
+							"type": "Expression"
+						},
+						"container": "chinook-landing"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/AzureBlobStorage1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/date_dim')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Snowflake1",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"p_account": "VXBXIAN-SWA36353",
+						"p_database": "MEDIA_DB",
+						"p_warehouse": "MEDIA_WH",
+						"p_role": "ACCOUNTADMIN",
+						"p_username": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2Table",
+				"schema": [
+					{
+						"name": "DATE_KEY",
+						"type": "NUMBER",
+						"precision": 10,
+						"scale": 0
+					},
+					{
+						"name": "FULL_DATE",
+						"type": "DATE",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "DAY_NUM",
+						"type": "NUMBER",
+						"precision": 3,
+						"scale": 0
+					},
+					{
+						"name": "WEEKDAY_ABBR",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "WEEKDAY_NUM",
+						"type": "NUMBER",
+						"precision": 1,
+						"scale": 0
+					},
+					{
+						"name": "DAY_OF_YEAR_NUM",
+						"type": "NUMBER",
+						"precision": 3,
+						"scale": 0
+					},
+					{
+						"name": "WEEK_OF_YEAR",
+						"type": "NUMBER",
+						"precision": 2,
+						"scale": 0
+					},
+					{
+						"name": "MONTH_NUM",
+						"type": "NUMBER",
+						"precision": 2,
+						"scale": 0
+					},
+					{
+						"name": "MONTH_ABBR",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "QUARTER_NUM",
+						"type": "NUMBER",
+						"precision": 1,
+						"scale": 0
+					},
+					{
+						"name": "QUARTER_NAME",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "YEAR_NUM",
+						"type": "NUMBER",
+						"precision": 4,
+						"scale": 0
+					},
+					{
+						"name": "FIRST_DAY_OF_MONTH",
+						"type": "DATE",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "LAST_DAY_OF_MONTH",
+						"type": "DATE",
+						"precision": 0,
+						"scale": 0
+					},
+					{
+						"name": "IS_WEEKEND",
+						"type": "VARCHAR",
+						"precision": 0,
+						"scale": 0
+					}
+				],
+				"typeProperties": {
+					"schema": "DW",
+					"table": "DATE_DIM"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/Snowflake1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/sql_generic')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "sql_serveroltp",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"TableName": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {
+					"schema": {
+						"value": "@split(dataset().TableName, '.')[0]",
+						"type": "Expression"
+					},
+					"table": {
+						"value": "@split(dataset().TableName, '.')[1]",
+						"type": "Expression"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/sql_serveroltp')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AzureBlobStorage1')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobStorage",
+				"typeProperties": {
+					"serviceEndpoint": "[parameters('AzureBlobStorage1_properties_typeProperties_serviceEndpoint')]",
+					"accountKind": "StorageV2"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Blob_SAS')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobStorage",
+				"typeProperties": {
+					"sasUri": {
+						"type": "AzureKeyVaultSecret",
+						"store": {
+							"referenceName": "LS_KeyVault_MI",
+							"type": "LinkedServiceReference"
+						},
+						"secretName": "[parameters('Blob_SAS_properties_typeProperties_sasUri_secretName')]"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_KeyVault_MI')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/LS_KeyVault_MI')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureKeyVault",
+				"typeProperties": {
+					"baseUrl": "[parameters('LS_KeyVault_MI_properties_typeProperties_baseUrl')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/Snowflake1')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"parameters": {
+					"p_account": {
+						"type": "string",
+						"defaultValue": "VXBXIAN-SWA36353"
+					},
+					"p_database": {
+						"type": "string",
+						"defaultValue": "MEDIA_DB"
+					},
+					"p_warehouse": {
+						"type": "string",
+						"defaultValue": "MEDIA_WH"
+					},
+					"p_role": {
+						"type": "string",
+						"defaultValue": "ACCOUNTADMIN"
+					},
+					"p_username": {
+						"type": "string",
+						"defaultValue": "TEJACHOWDARY"
+					}
+				},
+				"annotations": [],
+				"type": "SnowflakeV2",
+				"typeProperties": {
+					"authenticationType": "Basic",
+					"accountIdentifier": "@{linkedService().p_account}",
+					"user": "@{linkedService().p_username}",
+					"database": "[parameters('Snowflake1_properties_typeProperties_database')]",
+					"warehouse": "@{linkedService().p_warehouse}",
+					"password": {
+						"type": "AzureKeyVaultSecret",
+						"store": {
+							"referenceName": "LS_KeyVault_MI",
+							"type": "LinkedServiceReference"
+						},
+						"secretName": "sf-password"
+					}
+				},
+				"version": "1.1"
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_KeyVault_MI')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/sql_serveroltp')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('sql_serveroltp_properties_typeProperties_server')]",
+					"database": "[parameters('sql_serveroltp_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('sql_serveroltp_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('sql_serveroltp_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		}
+	]
+}

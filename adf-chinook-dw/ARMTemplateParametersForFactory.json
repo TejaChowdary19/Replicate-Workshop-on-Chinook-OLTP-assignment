@@ -1,0 +1,33 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "adf-chinook-dw"
+		},
+		"sql_serveroltp_password": {
+			"value": ""
+		},
+		"AzureBlobStorage1_properties_typeProperties_serviceEndpoint": {
+			"value": "https://stchinook.blob.core.windows.net/"
+		},
+		"Blob_SAS_properties_typeProperties_sasUri_secretName": {
+			"value": "blob-sas"
+		},
+		"LS_KeyVault_MI_properties_typeProperties_baseUrl": {
+			"value": "https://kv-chinook-keys.vault.azure.net/"
+		},
+		"Snowflake1_properties_typeProperties_database": {
+			"value": "@{linkedService().p_database}"
+		},
+		"sql_serveroltp_properties_typeProperties_server": {
+			"value": "chinook-sql.database.windows.net"
+		},
+		"sql_serveroltp_properties_typeProperties_database": {
+			"value": "Chinook"
+		},
+		"sql_serveroltp_properties_typeProperties_userName": {
+			"value": "fall2025"
+		}
+	}
+}
